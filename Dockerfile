@@ -1,58 +1,41 @@
-FROM eclipse-temurin:17-jre
+FROM openjdk:11-jdk
 
-ENV LANG='en_US.UTF-8' \
-    LANGUAGE='en_US:en' \
-    LC_ALL='en_US.UTF-8'
+LABEL maintainer="Your Name <youremail@example.com>"
 
-#
-# SonarQube setup
-#
-ARG SONARQUBE_VERSION=9.9.0.65466
-ARG SONARQUBE_ZIP_URL=https://binaries.sonarsource.com/Distribution/sonarqube/sonarqube-${SONARQUBE_VERSION}.zip
-ENV JAVA_HOME='/opt/java/openjdk' \
+ENV SONAR_VERSION=9.2.1.47142 \
     SONARQUBE_HOME=/opt/sonarqube \
-    SONAR_VERSION="${SONARQUBE_VERSION}" \
-    SQ_DATA_DIR="/opt/sonarqube/data" \
-    SQ_EXTENSIONS_DIR="/opt/sonarqube/extensions" \
-    SQ_LOGS_DIR="/opt/sonarqube/logs" \
-    SQ_TEMP_DIR="/opt/sonarqube/temp"
+    JDBC_POSTGRESQL_VERSION=42.2.16
 
-RUN set -eux; \
-    groupadd --system --gid 1000 sonarqube; \
-    useradd --system --uid 1000 --gid sonarqube sonarqube; \
-    apt-get update; \
-    apt-get install -y gnupg unzip curl bash fonts-dejavu; \
-    echo "networkaddress.cache.ttl=5" >> "${JAVA_HOME}/conf/security/java.security"; \
-    sed --in-place --expression="s?securerandom.source=file:/dev/random?securerandom.source=file:/dev/urandom?g" "${JAVA_HOME}/conf/security/java.security"; \
-    # pub   2048R/D26468DE 2015-05-25
-    #       Key fingerprint = F118 2E81 C792 9289 21DB  CAB4 CFCA 4A29 D264 68DE
-    # uid                  sonarsource_deployer (Sonarsource Deployer) <infra@sonarsource.com>
-    # sub   2048R/06855C1D 2015-05-25
-    for server in $(shuf -e hkps://keys.openpgp.org \
-                            hkps://keyserver.ubuntu.com) ; do \
-        gpg --batch --keyserver "${server}" --recv-keys 679F1EE92B19609DE816FDE81DB198F93525EC1A && break || : ; \
-    done; \
-    mkdir --parents /opt; \
-    cd /opt; \
-    curl --fail --location --output sonarqube.zip --silent --show-error "${SONARQUBE_ZIP_URL}"; \
-    curl --fail --location --output sonarqube.zip.asc --silent --show-error "${SONARQUBE_ZIP_URL}.asc"; \
-    gpg --batch --verify sonarqube.zip.asc sonarqube.zip; \
-    unzip -q sonarqube.zip; \
-    mv "sonarqube-${SONARQUBE_VERSION}" sonarqube; \
-    rm sonarqube.zip*; \
-    rm -rf ${SONARQUBE_HOME}/bin/*; \
-    ln -s "${SONARQUBE_HOME}/lib/sonar-application-${SONARQUBE_VERSION}.jar" "${SONARQUBE_HOME}/lib/sonarqube.jar"; \
-    chmod -R 555 ${SONARQUBE_HOME}; \
-    chmod -R ugo+wrX "${SQ_DATA_DIR}" "${SQ_EXTENSIONS_DIR}" "${SQ_LOGS_DIR}" "${SQ_TEMP_DIR}"; \
-    apt-get remove -y gnupg unzip curl; \
-    rm -rf /var/lib/apt/lists/*;
+# Install required packages
+RUN set -x \
+    && apt-get update \
+    && apt-get install -y gnupg unzip curl bash fontconfig \
+    && rm -rf /var/lib/apt/lists/*
 
-COPY entrypoint.sh ${SONARQUBE_HOME}/docker/
+# Download and verify SonarQube
+RUN set -x \
+    && cd /tmp \
+    && curl -o sonarqube.zip -fSL https://binaries.sonarsource.com/Distribution/sonarqube/sonarqube-$SONAR_VERSION.zip \
+    && curl -o sonarqube.zip.asc -fSL https://binaries.sonarsource.com/Distribution/sonarqube/sonarqube-$SONAR_VERSION.zip.asc \
+    && gpg --batch --keyserver hkps://keys.openpgp.org --recv-keys 8C8A14D94C1A49BE \
+    && gpg --batch --verify sonarqube.zip.asc sonarqube.zip \
+    && unzip sonarqube.zip \
+    && mv sonarqube-$SONAR_VERSION $SONARQUBE_HOME \
+    && rm sonarqube.zip* \
+    && rm -rf $SONARQUBE_HOME/bin/*
 
-WORKDIR ${SONARQUBE_HOME}
+# Download JDBC driver for PostgreSQL
+RUN set -x \
+    && curl -o $SONARQUBE_HOME/extensions/jdbc-driver/postgresql.jar -fSL https://jdbc.postgresql.org/download/postgresql-$JDBC_POSTGRESQL_VERSION.jar
+
+# Copy custom configuration
+COPY sonar.properties $SONARQUBE_HOME/conf/sonar.properties
+
+# Set permissions
+RUN set -x \
+    && chmod -R 777 $SONARQUBE_HOME/data $SONARQUBE_HOME/logs $SONARQUBE_HOME/extensions
+
+WORKDIR $SONARQUBE_HOME
 EXPOSE 9000
 
-USER sonarqube
-STOPSIGNAL SIGINT
-
-ENTRYPOINT ["/opt/sonarqube/docker/entrypoint.sh"]
+ENTRYPOINT ["./bin/run.sh"]
