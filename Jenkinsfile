@@ -1,6 +1,6 @@
 pipeline {
   environment {
-    imagename = "fdjapi10/myubuntu"
+    imagename = "fdjapi10/sonar"
     registryCredential = 'dockerhub-creds'
     dockerImage = ''
   }
