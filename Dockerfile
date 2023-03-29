@@ -1,22 +1,23 @@
-FROM openjdk:11-jdk
+FROM openjdk:11-jre-slim
 
-LABEL maintainer="Your Name <youremail@example.com>"
-
-ENV SONAR_VERSION=9.3.0.35538 \
+ENV SONAR_VERSION=9.2.1.47142 \
     SONARQUBE_HOME=/opt/sonarqube \
-    JDBC_POSTGRESQL_VERSION=42.2.16
+    # Database configuration
+    # Defaults to using H2
+    # Use values corresponding to your database
+    # For more info, see https://docs.sonarqube.org/latest/setup/install-server/
+    sonar.jdbc.username=sonar \
+    sonar.jdbc.password=sonar \
+    sonar.jdbc.url=jdbc:h2:tcp://localhost:9092/sonar
 
-# Install required packages
-RUN set -x \
-    && apt-get update \
-    && apt-get install -y gnupg unzip curl bash fontconfig \
-    && rm -rf /var/lib/apt/lists/*
+# Install required tools
+RUN apt-get update && apt-get install -y gnupg curl unzip
 
 # Download and verify SonarQube
 RUN set -x \
     && cd /tmp \
-    && curl -o sonarqube.zip -fSL https://binaries.sonarsource.com/Distribution/sonarqube/sonarqube-$SONAR_VERSION.zip \
-    && curl -o sonarqube.zip.asc -fSL https://binaries.sonarsource.com/Distribution/sonarqube/sonarqube-$SONAR_VERSION.zip.asc \
+    && curl -o sonarqube.zip -fSL https://binaries.sonarsource.com/Distribution/sonarqube/sonarqube-9.2.1.47142.zip \
+    && curl -o sonarqube.zip.asc -fSL https://binaries.sonarsource.com/Distribution/sonarqube/sonarqube-9.2.1.47142.zip.asc \
     && gpg --batch --keyserver hkps://keys.openpgp.org --recv-keys 8C8A14D94C1A49BE \
     && gpg --batch --verify sonarqube.zip.asc sonarqube.zip \
     && unzip sonarqube.zip \
@@ -24,18 +25,8 @@ RUN set -x \
     && rm sonarqube.zip* \
     && rm -rf $SONARQUBE_HOME/bin/*
 
-# Download JDBC driver for PostgreSQL
-RUN set -x \
-    && curl -o $SONARQUBE_HOME/extensions/jdbc-driver/postgresql.jar -fSL https://jdbc.postgresql.org/download/postgresql-$JDBC_POSTGRESQL_VERSION.jar
-
-# Copy custom configuration
-COPY sonar.properties $SONARQUBE_HOME/conf/sonar.properties
-
-# Set permissions
-RUN set -x \
-    && chmod -R 777 $SONARQUBE_HOME/data $SONARQUBE_HOME/logs $SONARQUBE_HOME/extensions
-
-WORKDIR $SONARQUBE_HOME
+# Expose default port
 EXPOSE 9000
 
-ENTRYPOINT ["./bin/run.sh"]
+# Start SonarQube
+ENTRYPOINT ["sh", "-c", "$SONARQUBE_HOME/bin/run.sh"]
