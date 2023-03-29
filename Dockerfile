@@ -1,13 +1,9 @@
-# Use official OpenJDK 8 runtime as a parent image
-FROM openjdk:8-jre-alpine
+FROM openjdk:8-jdk-alpine
 
-# Set environment variables
-ENV SONAR_VERSION=8.9.3.48735 \
-    SONARQUBE_HOME=/opt/sonarqube \
-    PATH=$PATH:/opt/sonarqube/bin
+ARG SONAR_VERSION=8.9.3.48735
+ENV SONARQUBE_HOME=/opt/sonarqube
 
-# Download and verify SonarQube
-RUN set -x \
+RUN apk add --no-cache curl gnupg \
     && cd /tmp \
     && curl -o sonarqube.zip -fSL https://binaries.sonarsource.com/Distribution/sonarqube/sonarqube-$SONAR_VERSION.zip \
     && curl -o sonarqube.zip.asc -fSL https://binaries.sonarsource.com/Distribution/sonarqube/sonarqube-$SONAR_VERSION.zip.asc \
@@ -18,9 +14,6 @@ RUN set -x \
     && rm sonarqube.zip* \
     && rm -rf $SONARQUBE_HOME/bin/*
 
-# Expose default port
-EXPOSE 9000
+EXPOSE 9000/tcp
 
-# Start SonarQube
-ENTRYPOINT ["./bin/run.sh"]
-CMD ["sonarqube"]
+CMD ["java", "-jar", "/opt/sonarqube/lib/sonar-application-$SONAR_VERSION.jar", "-Dsonar.log.console=true"]
