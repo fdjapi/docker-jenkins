@@ -7,14 +7,12 @@ ENV SONAR_VERSION=9.2.1.47142 \
     JDBC_POSTGRESQL_VERSION=42.2.16
 
 # Install required packages
-RUN set -x \
-    && apt-get update \
+RUN apt-get update \
     && apt-get install -y gnupg unzip curl bash fontconfig \
     && rm -rf /var/lib/apt/lists/*
 
 # Download and verify SonarQube
-RUN set -x \
-    && cd /tmp \
+RUN cd /tmp \
     && curl -o sonarqube.zip -fSL https://binaries.sonarsource.com/Distribution/sonarqube/sonarqube-$SONAR_VERSION.zip \
     && curl -o sonarqube.zip.asc -fSL https://binaries.sonarsource.com/Distribution/sonarqube/sonarqube-$SONAR_VERSION.zip.asc \
     && gpg --batch --keyserver hkps://keys.openpgp.org --recv-keys 8C8A14D94C1A49BE \
@@ -25,15 +23,13 @@ RUN set -x \
     && rm -rf $SONARQUBE_HOME/bin/*
 
 # Download JDBC driver for PostgreSQL
-RUN set -x \
-    && curl -o $SONARQUBE_HOME/extensions/jdbc-driver/postgresql.jar -fSL https://jdbc.postgresql.org/download/postgresql-$JDBC_POSTGRESQL_VERSION.jar
+RUN curl -o $SONARQUBE_HOME/extensions/jdbc-driver/postgresql.jar -fSL https://jdbc.postgresql.org/download/postgresql-$JDBC_POSTGRESQL_VERSION.jar
 
 # Copy custom configuration
 COPY sonar.properties $SONARQUBE_HOME/conf/sonar.properties
 
 # Set permissions
-RUN set -x \
-    && chmod -R 777 $SONARQUBE_HOME/data $SONARQUBE_HOME/logs $SONARQUBE_HOME/extensions
+RUN chmod -R 777 $SONARQUBE_HOME/data $SONARQUBE_HOME/logs $SONARQUBE_HOME/extensions
 
 WORKDIR $SONARQUBE_HOME
 EXPOSE 9000
